@@ -47,10 +47,17 @@ class ZipFile {
 	 */
 	public function __construct(array $filePathList = null)
 	{
-		if ($filePathList && is_array($filePathList)) {
-			foreach ($filePathList as $filePath) {
+		if (is_array($filePathList)) {
+			foreach ($filePathList as $filePath => $zipPath) {
+				// check format of $filePathList: filePath => zipPath or [n] => filePath
+				if (is_numeric($filePath)) {
+					$filePath = $zipPath;
+					$zipPath = basename($zipPath);
+				}
+
 				if (!file_exists($filePath)) throw new Exception(sprintf('File path %s does not exist.', $filePath));
-				$this->filePathList[] = $filePath;
+
+				$this->filePathList[$filePath] = $zipPath;
 			}
 		}
 
@@ -63,10 +70,14 @@ class ZipFile {
 	 * @param string $filePath
 	 * @throws Exception
 	 */
-	public function addFile($filePath)
+	public function addFile($filePath, $zipPath = null)
 	{
 		if (!file_exists($filePath)) throw new Exception(sprintf('File path %s does not exist.', $filePath));
-		$this->filePathList[] = $filePath;
+		if ($zipPath) {
+			$this->filePathList[$filePath] = $zipPath;
+		} else {
+			$this->filePathList[$filePath] = basename($filePath);
+		}
 	}
 
 	/**
@@ -99,19 +110,19 @@ class ZipFile {
 	 */
 	public function output($fileName)
 	{
-		error_reporting(0);
+		error_reporting(0); // any notice/error/warning string will corrupt the file!
 		header('Content-Type: application/zip');
 		header('Content-Transfer-Encoding: Binary');
 		header('Content-Disposition: attachment; filename='.$fileName.'');
 
 		clearstatcache();
-		foreach ($this->filePathList as $filePath) {
-			$this->outputLocalFileHeader($filePath);
+		foreach ($this->filePathList as $filePath => $zipPath) {
+			$this->outputLocalFileHeader($filePath, $zipPath);
 			$this->outputFileData($filePath);
 			// $this->outputDataDescriptor($filePath);
 		}
-		foreach ($this->filePathList as $filePath) {
-			$this->outputCentralDirectoryHeader($filePath);
+		foreach ($this->filePathList as $filePath => $zipPath) {
+			$this->outputCentralDirectoryHeader($filePath, $zipPath);
 		}
 		$this->outputEndOfCentralDirectory();
 
@@ -138,7 +149,7 @@ class ZipFile {
 	 *
 	 * @param string $filePath
 	 */
-	private function outputLocalFileHeader($filePath)
+	private function outputLocalFileHeader($filePath, $zipPath)
 	{
 		$versionNeeded = 10;
 		$flag = 0;
@@ -146,14 +157,13 @@ class ZipFile {
 		list($date, $time) = $this->getDateTime($filePath);
 		$crc = $this->getCRC32($filePath);
 		$fileSize = filesize($filePath);
-		$fileName = basename($filePath);
 		$extraLength = 0;
 
 		$data  = pack("VvvvvvVVVvv", 0x04034b50,
 			$versionNeeded, $flag, $compression,
 			$time, $date, $crc, $fileSize, $fileSize,
-			mb_strlen($fileName), $extraLength);
-		$data .= $fileName;
+			mb_strlen($zipPath), $extraLength);
+		$data .= $zipPath;
 
 		$this->localFileHeaderPositionMap[$filePath] = $this->localFileHeaderPosition;
 		$this->localFileHeaderPosition += mb_strlen($data);
@@ -225,7 +235,7 @@ class ZipFile {
 	 *
 	 * @param string $filePath
 	 */
-	private function outputCentralDirectoryHeader($filePath)
+	private function outputCentralDirectoryHeader($filePath, $zipPath)
 	{
 		$versionMadeBy = 20;
 		$versionNeeded = 10;
@@ -234,7 +244,6 @@ class ZipFile {
 		list($date, $time) = $this->getDateTime($filePath);
 		$crc = $this->getCRC32($filePath);
 		$fileSize = filesize($filePath);
-		$fileName = basename($filePath);
 		$extraLength = 0;
 		$commentLength = 0;
 		$disk = 0;
@@ -244,10 +253,10 @@ class ZipFile {
 		$data  = pack("VvvvvvvVVVvvvvvVV", 0x02014b50,
 			$versionMadeBy, $versionNeeded, $flag,
 			$compression, $time, $date, $crc, $fileSize,
-			$fileSize, mb_strlen($fileName), $extraLength,
+			$fileSize, mb_strlen($zipPath), $extraLength,
 			$commentLength, $disk, $internal, $external,
 			$this->localFileHeaderPositionMap[$filePath]);
-		$data .= $fileName;
+		$data .= $zipPath;
 
 		$this->centralDirectoryHeaderSize += mb_strlen($data);
 
