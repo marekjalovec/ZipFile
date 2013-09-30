@@ -78,6 +78,8 @@ class ZipFile {
 		} else {
 			$this->filePathList[$filePath] = basename($filePath);
 		}
+
+		return $this;
 	}
 
 	/**

@@ -39,7 +39,7 @@ Both methods allows you to specify custom file paths inside the ZIP archive.
         './foo/337346e6fd09d755ebda7f00b7ef03f8' => '/birds/swan.jpg',
         './foo/13b9d3de118ceb08223aea6f244163da' => '/mammals/mouse.jpg',
     ));
-        $zipFile->output('images.zip');
+    $zipFile->output('images.zip');
 
 or
 
